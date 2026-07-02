@@ -13,6 +13,14 @@ func sortedRunes(r []rune) []rune {
 	return r
 }
 
+func runeSet(r []rune) map[rune]bool {
+	m := make(map[rune]bool, len(r))
+	for _, x := range r {
+		m[x] = true
+	}
+	return m
+}
+
 func TestExtractCSSCodepoints(t *testing.T) {
 	css := `
 .fa-house::before { content: "\f015"; }
@@ -28,29 +36,72 @@ func TestExtractCSSCodepoints(t *testing.T) {
 	}
 }
 
+func TestExtractTextCodepoints(t *testing.T) {
+	doc := `<div class="ZZZ">Café &#8594;</div><!-- Ω --><span>5&nbsp;&euro;</span>`
+	set := runeSet(extractTextCodepoints(doc))
+
+	// Visible text and decoded entities are kept.
+	for _, r := range []rune{'C', 'a', 'f', 'é', '→', '5', '€'} {
+		if !set[r] {
+			t.Errorf("want %q (U+%04X) in text code points", r, r)
+		}
+	}
+	// Attribute value ('Z') and comment content ('Ω') are stripped with the markup.
+	for _, r := range []rune{'Z', 0x03A9} {
+		if set[r] {
+			t.Errorf("did not expect %q (U+%04X)", r, r)
+		}
+	}
+}
+
 func TestScanCodepoints(t *testing.T) {
 	dir := t.TempDir()
-	css := `.i::before { content: "\f015"; } .j::before { content: "\f015"; }`
-	if err := os.WriteFile(filepath.Join(dir, "icons.css"), []byte(css), 0o644); err != nil {
-		t.Fatal(err)
+	write := func(name, body string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	// A non-CSS file must be ignored.
-	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte(`\f099`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	write("icons.css", `.i::before { content: "\f015"; }`)
+	write("page.html", `<p>Zoé</p>`)
+	write("data.bin", `\f099 ignored`) // unknown extension, skipped
 
-	cps, origin, err := scanCodepoints([]string{dir}, "css")
+	// auto: CSS escapes + HTML text, unknown extension ignored.
+	cps, origin, err := scanCodepoints([]string{dir}, "auto")
 	if err != nil {
-		t.Fatalf("scanCodepoints: %v", err)
+		t.Fatalf("scanCodepoints auto: %v", err)
 	}
-	if len(cps) != 1 || cps[0] != 0xF015 { // deduplicated, .txt ignored
-		t.Errorf("got %v, want [U+F015]", cps)
+	set := runeSet(cps)
+	for _, r := range []rune{0xF015, 'Z', 'o', 'é'} {
+		if !set[r] {
+			t.Errorf("auto: want U+%04X", r)
+		}
 	}
-	if !filepath.IsAbs(origin[0xF015]) && origin[0xF015] == "" {
+	if origin[0xF015] == "" {
 		t.Error("origin should point at the source file")
 	}
 
-	if _, _, err := scanCodepoints([]string{dir}, "text"); err == nil {
-		t.Error("unsupported mode should error")
+	// css mode scans only .css (no HTML text).
+	cssSet := runeSet(mustScan(t, dir, "css"))
+	if !cssSet[0xF015] || cssSet['Z'] {
+		t.Error("css mode should scan only .css files")
 	}
+
+	// text mode scans only markup (no CSS escapes).
+	textSet := runeSet(mustScan(t, dir, "text"))
+	if !textSet['Z'] || textSet[0xF015] {
+		t.Error("text mode should scan only markup files")
+	}
+
+	if _, _, err := scanCodepoints([]string{dir}, "xyz"); err == nil {
+		t.Error("invalid mode should error")
+	}
+}
+
+func mustScan(t *testing.T, dir, mode string) []rune {
+	t.Helper()
+	cps, _, err := scanCodepoints([]string{dir}, mode)
+	if err != nil {
+		t.Fatalf("scanCodepoints %s: %v", mode, err)
+	}
+	return cps
 }

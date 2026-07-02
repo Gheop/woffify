@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,11 +19,22 @@ func (s *stringSlice) Set(v string) error {
 	return nil
 }
 
+// textExts are the markup/template extensions scanned in text mode.
+var textExts = map[string]bool{
+	".html": true, ".htm": true, ".xhtml": true, ".xml": true, ".svg": true,
+	".txt": true, ".md": true, ".vue": true, ".hbs": true, ".ejs": true,
+	".njk": true, ".twig": true, ".liquid": true, ".mustache": true,
+}
+
 // cssContentDecl matches the value of a CSS `content` declaration.
 var cssContentDecl = regexp.MustCompile(`(?i)content\s*:\s*([^;{}]*)`)
 
 // cssEscape matches a CSS unicode escape: a backslash then 1-6 hex digits.
 var cssEscape = regexp.MustCompile(`\\([0-9a-fA-F]{1,6})`)
+
+// htmlComment and htmlTag strip markup so text mode keeps only visible text.
+var htmlComment = regexp.MustCompile(`(?s)<!--.*?-->`)
+var htmlTag = regexp.MustCompile(`<[^>]*>`)
 
 // extractCSSCodepoints pulls the code points of `\fXXX`-style escapes found in
 // `content` declarations. This is the icon-font case (Font Awesome, icomoon):
@@ -39,25 +51,76 @@ func extractCSSCodepoints(css string) []rune {
 	return cps
 }
 
+// extractTextCodepoints strips tags and comments, decodes HTML entities, and
+// returns the code points of the remaining visible characters. It covers text
+// fonts (literal characters in templates); runtime-injected text is not seen.
+func extractTextCodepoints(s string) []rune {
+	s = htmlComment.ReplaceAllString(s, "")
+	s = htmlTag.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+	var cps []rune
+	for _, r := range s {
+		if r >= 0x20 && r != 0x7F { // skip control characters
+			cps = append(cps, r)
+		}
+	}
+	return cps
+}
+
+// fileMode decides how a file is scanned given the requested mode and its
+// extension. It returns "css", "text" or "" (skip).
+func fileMode(mode, ext string) string {
+	switch mode {
+	case "css":
+		if ext == ".css" {
+			return "css"
+		}
+	case "text":
+		if textExts[ext] {
+			return "text"
+		}
+	case "auto":
+		if ext == ".css" {
+			return "css"
+		}
+		if textExts[ext] {
+			return "text"
+		}
+	}
+	return ""
+}
+
 // scanCodepoints walks the given files and directories, extracts code points
 // from matching source files, and returns them in first-seen order along with
 // the file each was first seen in (for -subset-scan-report).
 func scanCodepoints(paths []string, mode string) ([]rune, map[rune]string, error) {
-	if mode != "css" {
-		return nil, nil, fmt.Errorf("unsupported -subset-scan-mode %q (only \"css\" for now)", mode)
+	switch mode {
+	case "css", "text", "auto":
+	default:
+		return nil, nil, fmt.Errorf("unsupported -subset-scan-mode %q (css, text or auto)", mode)
 	}
 
 	origin := map[rune]string{}
 	var order []rune
 	scanFile := func(path string) error {
-		if strings.ToLower(filepath.Ext(path)) != ".css" {
+		var cps []rune
+		switch fileMode(mode, strings.ToLower(filepath.Ext(path))) {
+		case "css":
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			cps = extractCSSCodepoints(string(data))
+		case "text":
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			cps = extractTextCodepoints(string(data))
+		default:
 			return nil
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		for _, r := range extractCSSCodepoints(string(data)) {
+		for _, r := range cps {
 			if _, ok := origin[r]; !ok {
 				origin[r] = path
 				order = append(order, r)

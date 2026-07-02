@@ -73,13 +73,16 @@ Options:
 -drop-hints             drop hinting when subsetting
 -retain-gids            keep original glyph IDs when subsetting
 -subset-scan <path>     derive the subset from code points used in files/dirs (repeatable)
--subset-scan-mode <m>   scan mode: css (\fXXX escapes in `content` declarations)
+-subset-scan-mode <m>   scan mode: auto (default), css or text
 -subset-scan-report     print the code points kept by -subset-scan
 ```
 
-`-subset-scan` reads your CSS and keeps exactly the icon glyphs the pages
-reference (`content: "\f015"`), so the subset stays in sync with the source with
-no hand-maintained glyph list. It unions with `-subset-unicodes`/`-subset-text`
+`-subset-scan` derives the subset from your sources, so it stays in sync with no
+hand-maintained glyph list. In `css` mode it keeps the icon glyphs the pages
+reference (`content: "\f015"`) — the Font Awesome case. In `text` mode it
+collects the literal characters from HTML/templates (markup stripped, HTML
+entities decoded). `auto` (the default) picks per file extension: `.css` as css,
+`.html`/`.svg`/templates as text. It unions with `-subset-unicodes`/`-subset-text`
 for glyphs injected at runtime, and errors out if the scan finds nothing rather
 than emitting an empty font.
 
@@ -170,9 +173,12 @@ MIT/MIT-style licenses.
 
 ## Changelog
 
-### v0.2.0 — CSS auto-scan subsetting (2026-07-02)
+### v0.2.0 — Source-scan subsetting (2026-07-02)
 
-- `-subset-scan` derives the glyph subset from `\fXXX` escapes in CSS `content` declarations, so icon-font subsets stay in sync with the source with no manual glyph list
+- `-subset-scan` derives the glyph subset from your sources, no hand-maintained glyph list
+- `css` mode reads `\fXXX` escapes in CSS `content` declarations (icon fonts)
+- `text` mode collects literal characters from HTML/templates (markup stripped, entities decoded)
+- `auto` (default) picks the mode per file extension
 - `-subset-scan-report` lists the kept code points and their origin file
 - Refuses to build an empty subset when a scan matches nothing
 

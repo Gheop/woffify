@@ -33,7 +33,7 @@ func main() {
 	retainGids := flag.Bool("retain-gids", false, "keep original glyph IDs when subsetting")
 	var scanPaths stringSlice
 	flag.Var(&scanPaths, "subset-scan", "derive the subset from code points used in these files/dirs (repeatable)")
-	scanMode := flag.String("subset-scan-mode", "css", "scan mode: css (\\fXXX escapes in `content` declarations)")
+	scanMode := flag.String("subset-scan-mode", "auto", "scan mode: auto, css (\\fXXX escapes) or text (literal characters)")
 	scanReport := flag.Bool("subset-scan-report", false, "print the code points kept by -subset-scan")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: woffify [options] <file|dir>...\n")
