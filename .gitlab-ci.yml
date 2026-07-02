@@ -1,0 +1,37 @@
+stages:
+  - test
+  - build
+
+test:
+  stage: test
+  image: golang:1.26-bookworm
+  script:
+    - apt-get update
+    - apt-get install -y libharfbuzz-dev libbrotli-dev pkg-config g++ git
+    # Debian/Ubuntu ship no woff2 -dev package; build the encoder from source.
+    - git clone --depth 1 https://github.com/google/woff2 /tmp/woff2
+    - cd /tmp/woff2
+    - >
+      g++ -O2 -std=c++11 -fPIC -Iinclude -c
+      src/woff2_enc.cc src/font.cc src/glyph.cc src/normalize.cc
+      src/transform.cc src/table_tags.cc src/variable_length.cc
+      src/woff2_common.cc src/woff2_out.cc
+    - ar rcs /usr/lib/libwoff2enc.a *.o
+    - cp -r include/woff2 /usr/include/
+    - printf 'Name:\x20woff2enc\nDescription:\x20woff2\x20encoder\nVersion:\x201.0.2\nLibs:\x20-lwoff2enc\x20-lbrotlienc\x20-lbrotlicommon\nCflags:\n' > /usr/lib/pkgconfig/libwoff2enc.pc
+    - cd "$CI_PROJECT_DIR"
+    - go vet ./...
+    - go test ./...
+    - go build -o woffify .
+
+build-image:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build -t "$CI_REGISTRY_IMAGE:latest" .
+    - docker push "$CI_REGISTRY_IMAGE:latest"

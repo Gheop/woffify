@@ -24,17 +24,16 @@ Input: `.woff`, `.ttf`, `.otf`, `.ttc`. Output: `.woff2`.
 
 ## Install
 
-Build the static container image straight from the repo, then run it:
+Pull the prebuilt static image (~6 MB), build it yourself, or install with Go:
 
 ```bash
+# prebuilt image
+docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify -o /data/out /data/fonts
+
+# or build the image from source
 docker build -t woffify https://github.com/Gheop/woffify.git
-docker run --rm -v "$PWD:/data" woffify -o /data/out /data/fonts
-```
 
-Or install with Go (needs the harfbuzz/woff2/brotli dev packages, see
-[Building](#building)):
-
-```bash
+# or install with Go (needs the harfbuzz/woff2/brotli dev packages, see Building)
 go install github.com/Gheop/woffify@latest
 ```
 

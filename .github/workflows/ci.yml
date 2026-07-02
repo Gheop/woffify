@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Install C dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libharfbuzz-dev libbrotli-dev pkg-config g++
+          # Ubuntu has no woff2 -dev package; build the encoder from source.
+          git clone --depth 1 https://github.com/google/woff2 /tmp/woff2
+          cd /tmp/woff2
+          g++ -O2 -std=c++11 -fPIC -Iinclude -c \
+            src/woff2_enc.cc src/font.cc src/glyph.cc src/normalize.cc \
+            src/transform.cc src/table_tags.cc src/variable_length.cc \
+            src/woff2_common.cc src/woff2_out.cc
+          sudo ar rcs /usr/lib/libwoff2enc.a *.o
+          sudo cp -r include/woff2 /usr/include/
+          printf 'Name: woff2enc\nDescription: woff2 encoder\nVersion: 1.0.2\nLibs: -lwoff2enc -lbrotlienc -lbrotlicommon\nCflags:\n' \
+            | sudo tee /usr/lib/pkgconfig/libwoff2enc.pc > /dev/null
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build -o woffify .
