@@ -37,20 +37,23 @@ func TestParseUnicodeRanges(t *testing.T) {
 }
 
 func TestBuildSubsetOptions(t *testing.T) {
-	if o, _ := buildSubsetOptions("", "", false, false); o.active() {
+	if o, _ := buildSubsetOptions("", "", nil, false, false); o.active() {
 		t.Error("no flags should give an inactive subset")
 	}
-	if o, _ := buildSubsetOptions("0-FF", "", false, false); !o.active() {
+	if o, _ := buildSubsetOptions("0-FF", "", nil, false, false); !o.active() {
 		t.Error("unicodes should give an active subset")
 	}
-	o, err := buildSubsetOptions("", "AZ", false, false)
+	if o, _ := buildSubsetOptions("", "", []rune{0xF015}, false, false); !o.active() {
+		t.Error("scanned code points should give an active subset")
+	}
+	o, err := buildSubsetOptions("", "AZ", nil, false, false)
 	if err != nil {
 		t.Fatalf("text subset: %v", err)
 	}
 	if len(o.unicodes) != 2 {
 		t.Errorf("text %q should yield 2 ranges, got %d", "AZ", len(o.unicodes))
 	}
-	if _, err := buildSubsetOptions("", "", true, false); err == nil {
+	if _, err := buildSubsetOptions("", "", nil, true, false); err == nil {
 		t.Error("-drop-hints without a subset set should error")
 	}
 }

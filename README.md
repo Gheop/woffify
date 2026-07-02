@@ -52,6 +52,10 @@ woffify -r -q -subset-unicodes 0-FF,20AC,2000-206F dist/fonts assets/fonts
 # subset to exactly the characters in a string
 woffify -subset-text "Patu.dev — coming soon" Brand.ttf
 
+# auto-scan: derive an icon-font subset from the code points used in CSS
+woffify -subset-scan public/themes -subset-scan-mode css \
+        -o dist/fonts assets/fonts/fa-solid-900.ttf
+
 # pipe mode: read a font from stdin, write WOFF2 to stdout (no temp files)
 cat Font.woff | woffify - > Font.woff2
 woffify -subset-unicodes 0-FF - < Font.ttf > Font.woff2
@@ -68,7 +72,16 @@ Options:
 -subset-text <string>   subset to the glyphs covering these characters
 -drop-hints             drop hinting when subsetting
 -retain-gids            keep original glyph IDs when subsetting
+-subset-scan <path>     derive the subset from code points used in files/dirs (repeatable)
+-subset-scan-mode <m>   scan mode: css (\fXXX escapes in `content` declarations)
+-subset-scan-report     print the code points kept by -subset-scan
 ```
+
+`-subset-scan` reads your CSS and keeps exactly the icon glyphs the pages
+reference (`content: "\f015"`), so the subset stays in sync with the source with
+no hand-maintained glyph list. It unions with `-subset-unicodes`/`-subset-text`
+for glyphs injected at runtime, and errors out if the scan finds nothing rather
+than emitting an empty font.
 
 Code points are hex, with an optional `U+` prefix. The exit code is non-zero if
 any conversion fails, so a CI step fails cleanly.
@@ -156,6 +169,12 @@ The static binary links HarfBuzz, google/woff2 and Brotli, all under permissive
 MIT/MIT-style licenses.
 
 ## Changelog
+
+### v0.2.0 — CSS auto-scan subsetting (2026-07-02)
+
+- `-subset-scan` derives the glyph subset from `\fXXX` escapes in CSS `content` declarations, so icon-font subsets stay in sync with the source with no manual glyph list
+- `-subset-scan-report` lists the kept code points and their origin file
+- Refuses to build an empty subset when a scan matches nothing
 
 ### v0.1.0 — Initial release (2026-07-02)
 

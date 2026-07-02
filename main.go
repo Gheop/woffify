@@ -31,6 +31,10 @@ func main() {
 	text := flag.String("subset-text", "", "subset to the glyphs covering these characters")
 	dropHints := flag.Bool("drop-hints", false, "drop hinting when subsetting")
 	retainGids := flag.Bool("retain-gids", false, "keep original glyph IDs when subsetting")
+	var scanPaths stringSlice
+	flag.Var(&scanPaths, "subset-scan", "derive the subset from code points used in these files/dirs (repeatable)")
+	scanMode := flag.String("subset-scan-mode", "css", "scan mode: css (\\fXXX escapes in `content` declarations)")
+	scanReport := flag.Bool("subset-scan-report", false, "print the code points kept by -subset-scan")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "usage: woffify [options] <file|dir>...\n")
 		fmt.Fprintf(os.Stderr, "       woffify [options] -   (read font from stdin, write WOFF2 to stdout)\n\n")
@@ -44,7 +48,25 @@ func main() {
 		os.Exit(2)
 	}
 
-	opts, err := buildSubsetOptions(*unicodes, *text, *dropHints, *retainGids)
+	var scanCps []rune
+	var scanOrigin map[rune]string
+	if len(scanPaths) > 0 {
+		var err error
+		scanCps, scanOrigin, err = scanCodepoints(scanPaths, *scanMode)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "woffify: %v\n", err)
+			os.Exit(2)
+		}
+		if len(scanCps) == 0 {
+			fmt.Fprintf(os.Stderr, "woffify: -subset-scan found no code points; refusing to build an empty subset\n")
+			os.Exit(2)
+		}
+		if *scanReport {
+			reportScan(scanCps, scanOrigin)
+		}
+	}
+
+	opts, err := buildSubsetOptions(*unicodes, *text, scanCps, *dropHints, *retainGids)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "woffify: %v\n", err)
 		os.Exit(2)
@@ -223,7 +245,9 @@ func outputPath(in, outDir string) string {
 }
 
 // buildSubsetOptions turns the CLI subset flags into a subsetOptions value.
-func buildSubsetOptions(unicodes, text string, dropHints, retainGids bool) (subsetOptions, error) {
+// scanCps holds code points already derived by -subset-scan; they are unioned
+// with -subset-unicodes and -subset-text.
+func buildSubsetOptions(unicodes, text string, scanCps []rune, dropHints, retainGids bool) (subsetOptions, error) {
 	opts := subsetOptions{dropHints: dropHints, retainGids: retainGids}
 	if unicodes != "" {
 		ranges, err := parseUnicodeRanges(unicodes)
@@ -235,8 +259,11 @@ func buildSubsetOptions(unicodes, text string, dropHints, retainGids bool) (subs
 	for _, r := range text {
 		opts.unicodes = append(opts.unicodes, unicodeRange{r, r})
 	}
+	for _, r := range scanCps {
+		opts.unicodes = append(opts.unicodes, unicodeRange{r, r})
+	}
 	if (dropHints || retainGids) && !opts.active() {
-		return opts, fmt.Errorf("-drop-hints/-retain-gids require -subset-unicodes or -subset-text")
+		return opts, fmt.Errorf("-drop-hints/-retain-gids require a subset (-subset-unicodes, -subset-text or -subset-scan)")
 	}
 	return opts, nil
 }
