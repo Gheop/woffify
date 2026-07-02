@@ -1,0 +1,3 @@
+/woffify
+*.woff2
+!testdata/**/*.woff2
