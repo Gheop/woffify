@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"os"
 	"reflect"
@@ -51,6 +52,22 @@ func TestBuildSubsetOptions(t *testing.T) {
 	}
 	if _, err := buildSubsetOptions("", "", true, false); err == nil {
 		t.Error("-drop-hints without a subset set should error")
+	}
+}
+
+// TestConvertStream checks the `woffify -` pipe path: font in, WOFF2 out.
+func TestConvertStream(t *testing.T) {
+	data, err := os.ReadFile("testdata/DejaVuSerif.woff")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	var out bytes.Buffer
+	if err := convertStream(bytes.NewReader(data), &out, subsetOptions{}); err != nil {
+		t.Fatalf("convertStream: %v", err)
+	}
+	b := out.Bytes()
+	if len(b) < 4 || binary.BigEndian.Uint32(b) != 0x774F4632 { // "wOF2"
+		t.Fatal("stream output is not a WOFF2 file")
 	}
 }
 

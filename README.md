@@ -51,6 +51,10 @@ woffify -r -q -subset-unicodes 0-FF,20AC,2000-206F dist/fonts assets/fonts
 
 # subset to exactly the characters in a string
 woffify -subset-text "Patu.dev — coming soon" Brand.ttf
+
+# pipe mode: read a font from stdin, write WOFF2 to stdout (no temp files)
+cat Font.woff | woffify - > Font.woff2
+woffify -subset-unicodes 0-FF - < Font.ttf > Font.woff2
 ```
 
 Options:
@@ -158,5 +162,6 @@ MIT/MIT-style licenses.
 - Convert WOFF/TTF/OTF/TTC to WOFF2 using the `google/woff2` encoder (Brotli 11)
 - Pure-Go WOFF 1.0 decoding, so `.woff` files can be recompressed
 - Glyph subsetting via HarfBuzz `hb-subset`
+- Stdin/stdout pipe mode (`woffify -`) for temp-file-free CI integration
 - Parallel batch conversion of files and directories
 - Single fully static binary, `scratch` container image

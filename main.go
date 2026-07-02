@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,7 +32,8 @@ func main() {
 	dropHints := flag.Bool("drop-hints", false, "drop hinting when subsetting")
 	retainGids := flag.Bool("retain-gids", false, "keep original glyph IDs when subsetting")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "usage: woffify [options] <file|dir>...\n\n")
+		fmt.Fprintf(os.Stderr, "usage: woffify [options] <file|dir>...\n")
+		fmt.Fprintf(os.Stderr, "       woffify [options] -   (read font from stdin, write WOFF2 to stdout)\n\n")
 		fmt.Fprintf(os.Stderr, "Convert WOFF/TTF/OTF to WOFF2, with optional subsetting.\n\n")
 		flag.PrintDefaults()
 	}
@@ -46,6 +48,16 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "woffify: %v\n", err)
 		os.Exit(2)
+	}
+
+	// Pipe mode: `woffify -` reads a font from stdin and writes WOFF2 to stdout.
+	if flag.NArg() == 1 && flag.Arg(0) == "-" {
+		errOut := muteCStderr()
+		if err := convertStream(os.Stdin, os.Stdout, opts); err != nil {
+			fmt.Fprintf(errOut, "woffify: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	inputs, err := collect(flag.Args(), *recursive)
@@ -99,24 +111,30 @@ func run(inputs []string, outDir string, jobs int, quiet bool, opts subsetOption
 	return failed
 }
 
-// convert runs the decode -> subset -> encode pipeline for one file and writes
-// the WOFF2 output. It returns a one-line size report on success.
+// transform runs the decode -> subset -> encode pipeline on font bytes and
+// returns the WOFF2 bytes.
+func transform(data []byte, opts subsetOptions) ([]byte, error) {
+	sfnt, err := toSFNT(data)
+	if err != nil {
+		return nil, err
+	}
+	if opts.active() {
+		sfnt, err = subsetSFNT(sfnt, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return encodeWOFF2(sfnt)
+}
+
+// convert reads one font file, transforms it and writes the WOFF2 output. It
+// returns a one-line size report on success.
 func convert(in, out string, opts subsetOptions) (string, error) {
 	data, err := os.ReadFile(in)
 	if err != nil {
 		return "", err
 	}
-	sfnt, err := toSFNT(data)
-	if err != nil {
-		return "", err
-	}
-	if opts.active() {
-		sfnt, err = subsetSFNT(sfnt, opts)
-		if err != nil {
-			return "", err
-		}
-	}
-	woff2, err := encodeWOFF2(sfnt)
+	woff2, err := transform(data, opts)
 	if err != nil {
 		return "", err
 	}
@@ -127,6 +145,21 @@ func convert(in, out string, opts subsetOptions) (string, error) {
 		return "", err
 	}
 	return sizeReport(in, out, len(data), len(woff2)), nil
+}
+
+// convertStream reads a font from r, transforms it and writes WOFF2 to w. This
+// backs the `woffify -` pipe mode (no temp files).
+func convertStream(r io.Reader, w io.Writer, opts subsetOptions) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	woff2, err := transform(data, opts)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(woff2)
+	return err
 }
 
 // toSFNT returns the SFNT bytes of a font. WOFF 1.0 is decoded; TTF/OTF are
