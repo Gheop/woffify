@@ -58,6 +58,33 @@ func TestBuildSubsetOptions(t *testing.T) {
 	}
 }
 
+// TestEncodeDeterministic guards against non-deterministic output: encoding the
+// same font repeatedly must give byte-identical WOFF2. (Regression test for an
+// uninitialized output buffer that leaked random padding bytes.)
+func TestEncodeDeterministic(t *testing.T) {
+	woff, err := os.ReadFile("testdata/DejaVuSerif.woff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sfnt, _, err := decodeWOFF(woff)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := encodeWOFF2(sfnt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 8; i++ {
+		next, err := encodeWOFF2(sfnt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(first, next) {
+			t.Fatalf("encodeWOFF2 is not deterministic (run %d differs)", i)
+		}
+	}
+}
+
 // TestConvertStream checks the `woffify -` pipe path: font in, WOFF2 out.
 func TestConvertStream(t *testing.T) {
 	data, err := os.ReadFile("testdata/DejaVuSerif.woff")

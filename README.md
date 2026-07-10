@@ -1,8 +1,8 @@
 # woffify
 
-Convert WOFF, TTF and OTF fonts to WOFF2, with optional glyph subsetting. One
-self-contained static binary, no Python or Node runtime, made for CI pipelines
-and container clusters.
+Convert any web font format — WOFF, TTF, OTF, TTC, EOT — to WOFF2, with optional
+glyph subsetting. One self-contained static binary, no Python or Node runtime,
+made for CI pipelines and container clusters.
 
 ## What it does
 
@@ -100,12 +100,12 @@ woffify -j "$(nproc)" -subset-unicodes 0-FF -o dist assets/fonts
 ## How it works
 
 ```
-WOFF ──(zlib decode, pure Go)──▶ SFNT ─┐
-TTF/OTF ───────────────────────────────┼─▶ hb-subset ─▶ woff2 encoder ─▶ WOFF2
-                                        │   (optional)   (Brotli 11)
+WOFF/EOT ──(decode, pure Go)──▶ SFNT ─┐
+TTF/OTF ──────────────────────────────┼─▶ hb-subset ─▶ woff2 encoder ─▶ WOFF2
+                                       │   (optional)   (Brotli 11)
 ```
 
-- WOFF decoding is pure Go (`compress/zlib`).
+- WOFF (zlib) and EOT decoding are pure Go.
 - Subsetting calls HarfBuzz `hb-subset` via cgo.
 - WOFF2 encoding calls the `google/woff2` encoder via cgo.
 
@@ -115,14 +115,15 @@ runs from a `scratch` image with no shared libraries.
 
 ## Benchmarks
 
-Measured on 180 Google Fonts (paired TTF and WOFF), Intel Core Ultra 7 155H
-(22 threads), woff2 encoder 1.0.2.
+Measured on 180 Google Fonts as TTF, WOFF, WOFF2 and EOT plus 94 OTF (814 files),
+woff2 encoder 1.0.2.
 
-Reliability:
+Reliability, over the whole dataset:
 
-- woffify TTF→WOFF2 identical to `woff2_compress`: **180/180**
-- WOFF→WOFF2 output valid (decodes back): **180/180**
-- Latin subset succeeds: **180/180**
+- every input format converts and the output decodes: **634/634** (TTF, WOFF, OTF, EOT)
+- woffify(TTF) is **byte-identical** to `woff2_compress`: **180/180**
+- EOT→WOFF2 is **byte-identical** to TTF→WOFF2 (lossless extraction): **180/180**
+- output is deterministic — same input, same bytes — including in parallel batches
 
 Size, cumulative over the 180 fonts:
 
@@ -132,21 +133,14 @@ Size, cumulative over the 180 fonts:
 | WOFF2, full | 23.6 MB | 29.6% |
 | WOFF2, Latin subset | 4.47 MB | 5.6% |
 
-The full WOFF2 output is within **+0.003%** of the official Google Fonts WOFF2
-files (same Brotli 11 encoder). A Latin subset (`0-FF,20AC,2000-206F,2122`) is
-**81% smaller** than the full WOFF2.
+Full WOFF2 is within **+0.003%** of the official Google Fonts WOFF2 (same Brotli
+11 encoder). A Latin subset (`0-FF,20AC,2000-206F,2122`) is **81% smaller** than
+the full WOFF2.
 
-Throughput, all 180 fonts, parallel over 22 cores:
-
-| task | wall time |
-|---|---|
-| full, from TTF | 53 s |
-| full, from WOFF | 39 s |
-| Latin subset, from TTF | 2.3 s |
-
-Subsetting is faster than full conversion because it shrinks the font before the
-Brotli 11 step, which dominates. WOFF decoding on its own costs about 5 ms per
-font (`go test -bench`), negligible next to encoding.
+Throughput is the encoder's, not woffify's: converting a font takes exactly as
+long as `woff2_compress` (Brotli 11), parallelized across all cores. Subsetting
+is several times faster because it shrinks the font before the Brotli step. WOFF
+decoding adds about 5 ms per font (`go test -bench`), negligible next to encoding.
 
 ## Building
 
@@ -174,6 +168,11 @@ The static binary links HarfBuzz, google/woff2 and Brotli, all under permissive
 MIT/MIT-style licenses.
 
 ## Changelog
+
+### v0.2.2 — Deterministic output (2026-07-02)
+
+- Fix non-deterministic WOFF2 output in parallel batches, caused by an uninitialized encode buffer; output is now byte-identical to `woff2_compress` on every run
+- Verified over 814 files: 634/634 convert and decode, 180/180 byte-identical to the reference
 
 ### v0.2.1 — EOT input (2026-07-02)
 
