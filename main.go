@@ -19,7 +19,7 @@ import (
 )
 
 var inputExts = map[string]bool{
-	".woff": true, ".ttf": true, ".otf": true, ".ttc": true,
+	".woff": true, ".ttf": true, ".otf": true, ".ttc": true, ".eot": true,
 }
 
 func main() {
@@ -189,6 +189,9 @@ func convertStream(r io.Reader, w io.Writer, opts subsetOptions) error {
 func toSFNT(data []byte) ([]byte, error) {
 	if len(data) < 4 {
 		return nil, fmt.Errorf("file too short")
+	}
+	if isEOT(data) { // EOT has no leading magic, detect it first
+		return decodeEOT(data)
 	}
 	switch binary.BigEndian.Uint32(data) {
 	case woffSignature: // "wOFF"

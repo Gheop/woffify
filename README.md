@@ -20,7 +20,9 @@ adds the two things a web font pipeline actually needs:
 On TTF/OTF input without subsetting, woffify's output is **byte-for-byte
 identical** to `woff2_compress` (same encoder, Brotli quality 11).
 
-Input: `.woff`, `.ttf`, `.otf`, `.ttc`. Output: `.woff2`.
+Input: `.woff`, `.ttf`, `.otf`, `.ttc`, `.eot`. Output: `.woff2`. EOT input is
+for migrating legacy IE assets; only uncompressed EOT is read (the modern case),
+MicroType Express compression is rejected with a clear message.
 
 ## Install
 
@@ -172,6 +174,11 @@ The static binary links HarfBuzz, google/woff2 and Brotli, all under permissive
 MIT/MIT-style licenses.
 
 ## Changelog
+
+### v0.2.1 — EOT input (2026-07-02)
+
+- Read uncompressed EOT (Embedded OpenType) files, for migrating legacy IE assets to WOFF2
+- MicroType Express-compressed EOT is rejected with a clear message (dead Microsoft format)
 
 ### v0.2.0 — Source-scan subsetting (2026-07-02)
 
