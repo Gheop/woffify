@@ -160,6 +160,11 @@ go build -o woffify .
 go test ./...
 ```
 
+## Used in production
+
+woffify is built for and used by [patu.dev](https://patu.dev) to convert and
+subset web fonts in its asset pipeline.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
