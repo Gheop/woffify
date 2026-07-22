@@ -169,8 +169,9 @@ same fonts, both faithful conversion and Latin subsetting land **within 1%** of
 each other. woffify is not smaller or better at compressing.
 
 It exists for deployment, not capability. A minimal fontTools container image
-(`python:3-slim` + fonttools + brotli) is **163 MB**; woffify ships as a
-**6.6 MB** static binary in a `scratch` image, with no runtime to install or pin.
+(`python:3-alpine` + fonttools + brotli, the smallest that still writes WOFF2) is
+**84 MB**; woffify ships as a **6.6 MB** static binary in a `scratch` image, with
+no runtime to install or pin.
 Two things it adds inside that single binary: uncompressed EOT input, which
 fontTools does not read, and deriving the subset straight from your CSS
 (`-subset-scan`), which otherwise means adding a Node tool like glyphhanger.
