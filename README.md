@@ -160,6 +160,23 @@ go build -o woffify .
 go test ./...
 ```
 
+## Why not fontTools?
+
+[fontTools](https://fonttools.readthedocs.io/) is the reference toolkit and does
+far more than woffify — merging, variable-font instancing, TTX round-trips — and
+it reads WOFF 1.0 too. On output size the two are equivalent: measured on the
+same fonts, both faithful conversion and Latin subsetting land **within 1%** of
+each other. woffify is not smaller or better at compressing.
+
+It exists for deployment, not capability. A minimal fontTools container image
+(`python:3-slim` + fonttools + brotli) is **163 MB**; woffify ships as a
+**6.6 MB** static binary in a `scratch` image, with no runtime to install or pin.
+Two things it adds inside that single binary: uncompressed EOT input, which
+fontTools does not read, and deriving the subset straight from your CSS
+(`-subset-scan`), which otherwise means adding a Node tool like glyphhanger.
+
+If you already have Python in your pipeline, use fontTools.
+
 ## Used in production
 
 woffify is built for and used by [patu.dev](https://patu.dev) to convert and
