@@ -58,6 +58,15 @@ func TestBuildSubsetOptions(t *testing.T) {
 	}
 }
 
+// TestRejectTTC checks that font collections are rejected with an error, since
+// WOFF2 has no collection format.
+func TestRejectTTC(t *testing.T) {
+	data := append([]byte("ttcf"), make([]byte, 20)...)
+	if _, err := toSFNT(data); err == nil {
+		t.Error("font collection (ttcf) should be rejected")
+	}
+}
+
 // TestEncodeDeterministic guards against non-deterministic output: encoding the
 // same font repeatedly must give byte-identical WOFF2. (Regression test for an
 // uninitialized output buffer that leaked random padding bytes.)

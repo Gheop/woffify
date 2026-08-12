@@ -19,7 +19,7 @@ import (
 )
 
 var inputExts = map[string]bool{
-	".woff": true, ".ttf": true, ".otf": true, ".ttc": true, ".eot": true,
+	".woff": true, ".ttf": true, ".otf": true, ".eot": true,
 }
 
 func main() {
@@ -199,7 +199,9 @@ func toSFNT(data []byte) ([]byte, error) {
 		return sfnt, err
 	case 0x774F4632: // "wOF2"
 		return nil, fmt.Errorf("already WOFF2")
-	default: // "OTTO", 0x00010000, "true", "ttcf"
+	case 0x74746366: // "ttcf": font collection
+		return nil, fmt.Errorf("font collections (.ttc) are not supported: WOFF2 has no collection format; extract a single font first")
+	default: // "OTTO", 0x00010000, "true"
 		return data, nil
 	}
 }

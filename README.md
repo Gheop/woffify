@@ -1,7 +1,7 @@
 # woffify
 
 woffify converts web fonts to WOFF2 from a single static binary. It reads WOFF,
-TTF, OTF, TTC and EOT, subsets glyphs with HarfBuzz, and can derive the glyph set
+TTF, OTF and EOT, subsets glyphs with HarfBuzz, and can derive the glyph set
 straight from your CSS. No Python or Node runtime — one 6.6 MB binary, built for
 CI pipelines and container images.
 
@@ -17,7 +17,7 @@ Convert a folder of fonts to WOFF2 with the prebuilt image:
 docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify:v0.2.2 -o /data/out /data/fonts
 ```
 
-The `.woff2` files are written next to `/data/out`. Every WOFF, TTF, OTF, TTC and
+The `.woff2` files are written next to `/data/out`. Every WOFF, TTF, OTF and
 EOT file in the input folder is converted.
 
 ## Installation
@@ -128,7 +128,7 @@ Print the retained code points and their origin file with `-subset-scan-report`.
 
 Code points are hex, with an optional `U+` prefix.
 
-Input formats: `.woff`, `.ttf`, `.otf`, `.ttc`, `.eot`. Output: `.woff2`. EOT
+Input formats: `.woff`, `.ttf`, `.otf`, `.eot`. Output: `.woff2`. EOT
 input is for migrating legacy IE assets. Only uncompressed EOT is read. MicroType
 Express-compressed EOT is rejected with a clear message.
 
@@ -236,6 +236,11 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 ## Release history
 
+### v0.2.3 — Reject font collections (2026-08-12)
+
+- Reject `.ttc` font collections with a clear message: WOFF2 has no collection format (previously mis-handled)
+- Hardened over 297 varied system fonts (color/COLR, CJK, Arabic, Indic, symbols, variable, CFF): all subset and convert, and faithful output is byte-identical to `woff2_compress` on the sample
+
 ### v0.2.2 — Deterministic output (2026-07-02)
 
 - Fix non-deterministic WOFF2 output in parallel batches, caused by an uninitialized encode buffer; output is now byte-identical to `woff2_compress` on every run
@@ -268,4 +273,5 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 | Version | Date       | Changes                                                              |
 |---------|------------|----------------------------------------------------------------------|
+| 1.0.1   | 2026-08-12 | Drop .ttc from supported input formats                              |
 | 1.0.0   | 2026-08-12 | Initialize changelog, restructure to Diátaxis, fix Debian/Ubuntu build deps |
