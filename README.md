@@ -1,101 +1,136 @@
 # woffify
 
-Convert any web font format — WOFF, TTF, OTF, TTC, EOT — to WOFF2, with optional
-glyph subsetting. One self-contained static binary, no Python or Node runtime,
-made for CI pipelines and container clusters.
+woffify converts web fonts to WOFF2 from a single static binary. It reads WOFF,
+TTF, OTF, TTC and EOT, subsets glyphs with HarfBuzz, and can derive the glyph set
+straight from your CSS. No Python or Node runtime — one 6.6 MB binary, built for
+CI pipelines and container images.
 
-## What it does
+[![CI](https://github.com/Gheop/woffify/actions/workflows/ci.yml/badge.svg)](https://github.com/Gheop/woffify/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Gheop/woffify)](https://github.com/Gheop/woffify/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-`google/woff2` (`woff2_compress`) is the reference WOFF2 encoder, but it only
-takes TTF/OTF input and does no subsetting. woffify wraps the same encoder and
-adds the two things a web font pipeline actually needs:
+## Quick start
 
-- **WOFF 1.0 input.** WOFF is decoded to SFNT in pure Go, so you can recompress
-  existing `.woff` files. This is lossless: the result matches encoding from the
-  original TTF.
-- **Subsetting.** HarfBuzz (`hb-subset`) drops the glyphs you don't need, which
-  is the biggest size win for the web. On text fonts a Latin subset is routinely
-  80–95% smaller than the full font.
-
-On TTF/OTF input without subsetting, woffify's output is **byte-for-byte
-identical** to `woff2_compress` (same encoder, Brotli quality 11).
-
-Input: `.woff`, `.ttf`, `.otf`, `.ttc`, `.eot`. Output: `.woff2`. EOT input is
-for migrating legacy IE assets; only uncompressed EOT is read (the modern case),
-MicroType Express compression is rejected with a clear message.
-
-## Install
-
-Pull the prebuilt static image (~6 MB), build it yourself, or install with Go:
+Convert a folder of fonts to WOFF2 with the prebuilt image:
 
 ```bash
-# prebuilt image
-docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify -o /data/out /data/fonts
+docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify:v0.2.2 -o /data/out /data/fonts
+```
 
-# or build the image from source
+The `.woff2` files are written next to `/data/out`. Every WOFF, TTF, OTF, TTC and
+EOT file in the input folder is converted.
+
+## Installation
+
+### Prebuilt image
+
+Pull the static image from the container registry:
+
+```bash
+docker pull ghcr.io/gheop/woffify:v0.2.2
+```
+
+The image is also on GitLab at `registry.gitlab.com/gheop/woffify:v0.2.2`.
+
+### Build the image from source
+
+Build straight from the repository:
+
+```bash
 docker build -t woffify https://github.com/Gheop/woffify.git
+```
 
-# or install with Go (needs the harfbuzz/woff2/brotli dev packages, see Building)
+### Install with Go
+
+Install the command with Go 1.26 or newer:
+
+```bash
 go install github.com/Gheop/woffify@latest
 ```
 
+This build links against system libraries. Install the C dependencies first. See
+[Building from source](#building-from-source).
+
 ## Usage
 
+Convert one file. The output goes next to the source:
+
 ```bash
-# single file
 woffify Font.woff
+```
 
-# a whole directory to an output directory
+Convert a folder into an output folder:
+
+```bash
 woffify -o dist/fonts assets/fonts
+```
 
-# Latin subset, recursive, quiet
-woffify -r -q -subset-unicodes 0-FF,20AC,2000-206F dist/fonts assets/fonts
+Subset to a set of code points. Recurse into folders and print only errors:
 
-# subset to exactly the characters in a string
+```bash
+woffify -r -q -subset-unicodes 0-FF,20AC,2000-206F -o dist/fonts assets/fonts
+```
+
+Subset to the exact characters in a string:
+
+```bash
 woffify -subset-text "Patu.dev — coming soon" Brand.ttf
+```
 
-# auto-scan: derive an icon-font subset from the code points used in CSS
-woffify -subset-scan public/themes -subset-scan-mode css \
-        -o dist/fonts assets/fonts/fa-solid-900.ttf
+Read a font from stdin and write WOFF2 to stdout. No temp files:
 
-# pipe mode: read a font from stdin, write WOFF2 to stdout (no temp files)
+```bash
 cat Font.woff | woffify - > Font.woff2
 woffify -subset-unicodes 0-FF - < Font.ttf > Font.woff2
 ```
 
-Options:
+The exit code is non-zero when any conversion fails. A CI step fails cleanly.
 
-```
--o <dir>                output directory (default: next to each source)
--r                      recurse into directories
--q                      only print errors
--j <n>                  parallel workers (default: CPU count)
--subset-unicodes <set>  subset to code point ranges, e.g. 0-FF,20AC,2000-206F
--subset-text <string>   subset to the glyphs covering these characters
--drop-hints             drop hinting when subsetting
--retain-gids            keep original glyph IDs when subsetting
--subset-scan <path>     derive the subset from code points used in files/dirs (repeatable)
--subset-scan-mode <m>   scan mode: auto (default), css or text
--subset-scan-report     print the code points kept by -subset-scan
-```
+### Subset from your sources
 
-`-subset-scan` derives the subset from your sources, so it stays in sync with no
-hand-maintained glyph list. In `css` mode it keeps the icon glyphs the pages
-reference (`content: "\f015"`) — the Font Awesome case. In `text` mode it
-collects the literal characters from HTML/templates (markup stripped, HTML
-entities decoded). `auto` (the default) picks per file extension: `.css` as css,
-`.html`/`.svg`/templates as text. It unions with `-subset-unicodes`/`-subset-text`
-for glyphs injected at runtime, and errors out if the scan finds nothing rather
-than emitting an empty font.
-
-Code points are hex, with an optional `U+` prefix. The exit code is non-zero if
-any conversion fails, so a CI step fails cleanly.
-
-Batch runs use every CPU core by default:
+`-subset-scan` derives the glyph set from your source files. The subset stays in
+sync with the pages, with no hand-maintained glyph list:
 
 ```bash
-woffify -j "$(nproc)" -subset-unicodes 0-FF -o dist assets/fonts
+woffify -subset-scan public/themes -o dist/fonts assets/fonts/fa-solid-900.ttf
 ```
+
+Scan modes:
+
+- `css` reads `\fXXX` escapes in CSS `content` declarations. This is the icon-font
+  case (Font Awesome, icomoon).
+- `text` collects the literal characters from HTML and templates. Markup is
+  stripped and HTML entities are decoded.
+- `auto` (the default) picks the mode per file extension. `.css` uses css.
+  `.html`, `.svg` and template files use text.
+
+`-subset-scan` unions with `-subset-unicodes` and `-subset-text`, so you can add
+glyphs that are injected at runtime. If a scan finds no code points, woffify exits
+with an error instead of writing an empty font.
+
+Print the retained code points and their origin file with `-subset-scan-report`.
+
+## Options
+
+| Flag | Default | Description |
+|---|---|---|
+| `-o <dir>` | next to each source | Output directory |
+| `-r` | off | Recurse into directories |
+| `-q` | off | Print only errors |
+| `-j <n>` | CPU count | Number of parallel workers |
+| `-subset-unicodes <set>` | — | Subset to code point ranges, e.g. `0-FF,20AC` |
+| `-subset-text <string>` | — | Subset to the glyphs covering these characters |
+| `-subset-scan <path>` | — | Derive the subset from files or dirs (repeatable) |
+| `-subset-scan-mode <m>` | `auto` | Scan mode: `auto`, `css` or `text` |
+| `-subset-scan-report` | off | Print the code points kept by the scan |
+| `-drop-hints` | off | Drop hinting when subsetting |
+| `-retain-gids` | off | Keep original glyph IDs when subsetting |
+
+Code points are hex, with an optional `U+` prefix.
+
+Input formats: `.woff`, `.ttf`, `.otf`, `.ttc`, `.eot`. Output: `.woff2`. EOT
+input is for migrating legacy IE assets. Only uncompressed EOT is read. MicroType
+Express-compressed EOT is rejected with a clear message.
 
 ## How it works
 
@@ -106,12 +141,15 @@ TTF/OTF ────────────────────────
 ```
 
 - WOFF (zlib) and EOT decoding are pure Go.
-- Subsetting calls HarfBuzz `hb-subset` via cgo.
-- WOFF2 encoding calls the `google/woff2` encoder via cgo.
+- Subsetting calls HarfBuzz `hb-subset` through cgo.
+- WOFF2 encoding calls the `google/woff2` encoder through cgo.
 
-The release binary is fully static: HarfBuzz is built minimal (subset only, no
-FreeType/glib/graphite), woff2 and brotli are linked statically, and the result
+The release binary is fully static. HarfBuzz is built minimal (subset only, no
+FreeType, glib or graphite). woff2 and brotli are linked statically. The result
 runs from a `scratch` image with no shared libraries.
+
+On TTF and OTF input without subsetting, the output is byte-for-byte identical to
+`woff2_compress`, because it is the same encoder at Brotli quality 11.
 
 ## Benchmarks
 
@@ -137,44 +175,52 @@ Full WOFF2 is within **+0.003%** of the official Google Fonts WOFF2 (same Brotli
 11 encoder). A Latin subset (`0-FF,20AC,2000-206F,2122`) is **81% smaller** than
 the full WOFF2.
 
-Throughput is the encoder's, not woffify's: converting a font takes exactly as
-long as `woff2_compress` (Brotli 11), parallelized across all cores. Subsetting
-is several times faster because it shrinks the font before the Brotli step. WOFF
+Throughput is the encoder's, not woffify's: converting a font takes the same time
+as `woff2_compress` (Brotli 11), parallelized across all cores. Subsetting is
+several times faster because it shrinks the font before the Brotli step. WOFF
 decoding adds about 5 ms per font (`go test -bench`), negligible next to encoding.
 
-## Building
+## Building from source
 
-Static binary in a `scratch` image (recommended):
+The static Docker build needs no local dependencies:
 
 ```bash
 docker build -t woffify .
 ```
 
-Local dynamic build for development (needs the dev packages for harfbuzz-subset,
-woff2 and brotli):
+For a local dynamic build, install the C dependencies. On Fedora, all three are
+packaged:
 
 ```bash
-# Debian/Ubuntu: apt install libharfbuzz-dev libwoff2-dev libbrotli-dev
-# Fedora:        dnf install harfbuzz-devel woff2-devel brotli-devel
+dnf install harfbuzz-devel woff2-devel brotli-devel
 go build -o woffify .
 go test ./...
 ```
+
+Debian and Ubuntu do not package the woff2 encoder headers (`libwoff2-dev` does
+not exist). Build the woff2 encoder from source, as the CI does. See
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the exact recipe.
+
+## Contributing
+
+Pull requests run through CI on GitHub and GitLab: `go vet`, the test suite, and a
+static image build. Keep changes covered by a test.
 
 ## Why not fontTools?
 
 [fontTools](https://fonttools.readthedocs.io/) is the reference toolkit and does
 far more than woffify — merging, variable-font instancing, TTX round-trips — and
-it reads WOFF 1.0 too. On output size the two are equivalent: measured on the
-same fonts, both faithful conversion and Latin subsetting land **within 1%** of
-each other. woffify is not smaller or better at compressing.
+it reads WOFF 1.0 too. On output size the two are equivalent: measured on the same
+fonts, both faithful conversion and Latin subsetting land within 1% of each other.
+woffify is neither smaller nor better at compressing.
 
-It exists for deployment, not capability. A minimal fontTools container image
+The reason to reach for woffify is deployment. A minimal fontTools container image
 (`python:3-alpine` + fonttools + brotli, the smallest that still writes WOFF2) is
-**84 MB**; woffify ships as a **6.6 MB** static binary in a `scratch` image, with
-no runtime to install or pin.
-Two things it adds inside that single binary: uncompressed EOT input, which
-fontTools does not read, and deriving the subset straight from your CSS
-(`-subset-scan`), which otherwise means adding a Node tool like glyphhanger.
+**84 MB**. woffify ships as a **6.6 MB** static binary in a `scratch` image, with
+no runtime to install or pin. Two things it adds inside that single binary:
+uncompressed EOT input, which fontTools does not read, and deriving the subset
+straight from your CSS (`-subset-scan`), which otherwise means adding a Node tool
+like glyphhanger.
 
 If you already have Python in your pipeline, use fontTools.
 
@@ -185,12 +231,10 @@ subset web fonts in its asset pipeline.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The static binary links HarfBuzz, google/woff2 and
+Brotli, all under permissive MIT or MIT-style licenses.
 
-The static binary links HarfBuzz, google/woff2 and Brotli, all under permissive
-MIT/MIT-style licenses.
-
-## Changelog
+## Release history
 
 ### v0.2.2 — Deterministic output (2026-07-02)
 
@@ -200,13 +244,13 @@ MIT/MIT-style licenses.
 ### v0.2.1 — EOT input (2026-07-02)
 
 - Read uncompressed EOT (Embedded OpenType) files, for migrating legacy IE assets to WOFF2
-- MicroType Express-compressed EOT is rejected with a clear message (dead Microsoft format)
+- MicroType Express-compressed EOT is rejected with a clear message
 
 ### v0.2.0 — Source-scan subsetting (2026-07-02)
 
 - `-subset-scan` derives the glyph subset from your sources, no hand-maintained glyph list
 - `css` mode reads `\fXXX` escapes in CSS `content` declarations (icon fonts)
-- `text` mode collects literal characters from HTML/templates (markup stripped, entities decoded)
+- `text` mode collects literal characters from HTML/templates
 - `auto` (default) picks the mode per file extension
 - `-subset-scan-report` lists the kept code points and their origin file
 - Refuses to build an empty subset when a scan matches nothing
@@ -214,8 +258,14 @@ MIT/MIT-style licenses.
 ### v0.1.0 — Initial release (2026-07-02)
 
 - Convert WOFF/TTF/OTF/TTC to WOFF2 using the `google/woff2` encoder (Brotli 11)
-- Pure-Go WOFF 1.0 decoding, so `.woff` files can be recompressed
+- Pure-Go WOFF 1.0 decoding
 - Glyph subsetting via HarfBuzz `hb-subset`
-- Stdin/stdout pipe mode (`woffify -`) for temp-file-free CI integration
+- Stdin/stdout pipe mode for temp-file-free CI integration
 - Parallel batch conversion of files and directories
 - Single fully static binary, `scratch` container image
+
+## README changelog
+
+| Version | Date       | Changes                                                              |
+|---------|------------|----------------------------------------------------------------------|
+| 1.0.0   | 2026-08-12 | Initialize changelog, restructure to Diátaxis, fix Debian/Ubuntu build deps |
