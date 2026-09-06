@@ -137,7 +137,7 @@ func run(inputs []string, outDir string, jobs int, quiet bool, opts subsetOption
 		go func() {
 			defer wg.Done()
 			for in := range queue {
-				line, err := convert(in, outputPath(in, outDir), opts)
+				line, err := safeConvert(in, outputPath(in, outDir), opts)
 				printMu.Lock()
 				if err != nil {
 					fmt.Fprintf(errOut, "woffify: %s: %v\n", in, err)
@@ -171,6 +171,19 @@ func transform(data []byte, opts subsetOptions) ([]byte, error) {
 		}
 	}
 	return encodeWOFF2(sfnt)
+}
+
+// safeConvert wraps convert with a recover, so a Go panic on one font is turned
+// into an error and fails only that file, not the whole batch. (A C-level crash
+// in cgo is not recoverable this way; the fuzzed decoders make Go panics
+// unlikely, this is a batch safety net.)
+func safeConvert(in, out string, opts subsetOptions) (line string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	return convert(in, out, opts)
 }
 
 // convert reads one font file, transforms it and writes the WOFF2 output. It
@@ -223,12 +236,19 @@ func writeAtomic(out string, data []byte) error {
 	return nil
 }
 
+// maxStreamBytes bounds the pipe-mode input; far above any real font, it just
+// stops an unbounded stdin from exhausting memory.
+const maxStreamBytes = 512 << 20 // 512 MiB
+
 // convertStream reads a font from r, transforms it and writes WOFF2 to w. This
 // backs the `woffify -` pipe mode (no temp files).
 func convertStream(r io.Reader, w io.Writer, opts subsetOptions) error {
-	data, err := io.ReadAll(r)
+	data, err := io.ReadAll(io.LimitReader(r, maxStreamBytes+1))
 	if err != nil {
 		return err
+	}
+	if len(data) > maxStreamBytes {
+		return fmt.Errorf("input exceeds %d bytes", maxStreamBytes)
 	}
 	woff2, err := transform(data, opts)
 	if err != nil {

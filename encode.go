@@ -6,6 +6,7 @@ import "C"
 
 import (
 	"fmt"
+	"math"
 	"unsafe"
 )
 
@@ -25,5 +26,8 @@ func encodeWOFF2(sfnt []byte) ([]byte, error) {
 		return nil, fmt.Errorf("woff2 encoding failed (not a valid font?)")
 	}
 	defer C.free(unsafe.Pointer(p))
+	if uint64(n) > math.MaxInt32 {
+		return nil, fmt.Errorf("woff2 output too large: %d bytes", uint64(n))
+	}
 	return C.GoBytes(unsafe.Pointer(p), C.int(n)), nil
 }

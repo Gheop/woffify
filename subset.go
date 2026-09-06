@@ -7,6 +7,7 @@ import "C"
 
 import (
 	"fmt"
+	"math"
 	"unsafe"
 )
 
@@ -32,6 +33,9 @@ func (o subsetOptions) active() bool { return len(o.unicodes) > 0 }
 func subsetSFNT(sfnt []byte, opts subsetOptions) ([]byte, error) {
 	if len(sfnt) == 0 {
 		return nil, fmt.Errorf("empty SFNT data")
+	}
+	if uint64(len(sfnt)) > math.MaxUint32 {
+		return nil, fmt.Errorf("SFNT too large: %d bytes", len(sfnt))
 	}
 
 	// DUPLICATE makes HarfBuzz copy the bytes immediately, so it never holds a
@@ -79,6 +83,9 @@ func subsetSFNT(sfnt []byte, opts subsetOptions) ([]byte, error) {
 	data := C.hb_blob_get_data(outBlob, &n)
 	if data == nil || n == 0 {
 		return nil, fmt.Errorf("subsetting produced no data")
+	}
+	if uint64(n) > math.MaxInt32 {
+		return nil, fmt.Errorf("subset output too large: %d bytes", uint64(n))
 	}
 	return C.GoBytes(unsafe.Pointer(data), C.int(n)), nil
 }
