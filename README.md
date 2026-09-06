@@ -236,6 +236,12 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 ## Release history
 
+### v0.2.4 — Reproducible build and atomic batch writes (2026-09-06)
+
+- Pin HarfBuzz (14.4.0), woff2 (v1.0.2), base images and CI actions by tag/SHA/digest for a reproducible build
+- Atomic output writes (temp + rename) and output-collision detection: no silent overwrite or partial file
+- Hardened cgo size casts, bounded pipe-mode input, and per-file panic recovery in the worker pool
+
 ### v0.2.3 — Reject font collections (2026-08-12)
 
 - Reject `.ttc` font collections with a clear message: WOFF2 has no collection format (previously mis-handled)
@@ -273,5 +279,6 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 | Version | Date       | Changes                                                              |
 |---------|------------|----------------------------------------------------------------------|
+| 1.0.2   | 2026-09-06 | Add v0.2.4 to release history                                       |
 | 1.0.1   | 2026-08-12 | Drop .ttc from supported input formats                              |
 | 1.0.0   | 2026-08-12 | Initialize changelog, restructure to Diátaxis, fix Debian/Ubuntu build deps |
