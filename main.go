@@ -106,6 +106,30 @@ func run(inputs []string, outDir string, jobs int, quiet bool, opts subsetOption
 		printMu sync.Mutex
 		wg      sync.WaitGroup
 	)
+
+	// Detect output-path collisions: distinct inputs that would write the same
+	// file (e.g. same basename in different directories under -r). Skip the whole
+	// colliding group with an error instead of silently overwriting one with
+	// another.
+	byOut := map[string][]string{}
+	for _, in := range inputs {
+		out := outputPath(in, outDir)
+		byOut[out] = append(byOut[out], in)
+	}
+	todo := make([]string, 0, len(inputs))
+	for _, in := range inputs {
+		if len(byOut[outputPath(in, outDir)]) == 1 {
+			todo = append(todo, in)
+		}
+	}
+	for out, ins := range byOut {
+		if len(ins) > 1 {
+			fmt.Fprintf(errOut, "woffify: %d inputs map to the same output %q, skipped: %s\n",
+				len(ins), out, strings.Join(ins, ", "))
+			atomic.AddInt32(&failed, int32(len(ins)))
+		}
+	}
+
 	queue := make(chan string)
 
 	for i := 0; i < jobs; i++ {
@@ -125,7 +149,7 @@ func run(inputs []string, outDir string, jobs int, quiet bool, opts subsetOption
 			}
 		}()
 	}
-	for _, in := range inputs {
+	for _, in := range todo {
 		queue <- in
 	}
 	close(queue)
@@ -160,13 +184,43 @@ func convert(in, out string, opts subsetOptions) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(out, woff2, 0o644); err != nil {
+	if err := writeAtomic(out, woff2); err != nil {
 		return "", err
 	}
 	return sizeReport(in, out, len(data), len(woff2)), nil
+}
+
+// writeAtomic writes data to a temp file in the destination directory, then
+// renames it into place. The rename is atomic, so a reader never sees a partial
+// file and two workers racing on the same path cannot corrupt it (last wins).
+func writeAtomic(out string, data []byte) error {
+	dir := filepath.Dir(out)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(dir, ".woffify-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o644); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err := os.Rename(tmpName, out); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	return nil
 }
 
 // convertStream reads a font from r, transforms it and writes WOFF2 to w. This
