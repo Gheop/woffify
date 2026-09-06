@@ -4,15 +4,19 @@ stages:
 
 test:
   stage: test
-  image: golang:1.26-bookworm
+  image: golang:1.26-bookworm@sha256:9fdc884aacc3bec89b20ffc69f4bb369c78210e3e4f600387b5128b12c199f81
+  variables:
+    WOFF2_TAG: v1.0.2
+    WOFF2_SHA: 1bccf208bca986e53a647dfe4811322adb06ecf8
   script:
     - apt-get update
     - apt-get install -y libharfbuzz-dev libbrotli-dev pkg-config g++ git
-    # Debian/Ubuntu ship no woff2 -dev package; build the encoder from source.
-    - git clone --depth 1 https://github.com/google/woff2 /tmp/woff2
+    # Debian/Ubuntu ship no woff2 -dev package; build the encoder from a pinned source.
+    - git clone --depth 1 --branch "$WOFF2_TAG" https://github.com/google/woff2 /tmp/woff2
+    - test "$(git -C /tmp/woff2 rev-parse HEAD)" = "$WOFF2_SHA"
     - cd /tmp/woff2
     - >
-      g++ -O2 -std=c++11 -fPIC -Iinclude -c
+      g++ -O2 -std=c++11 -include cstdint -fPIC -Iinclude -c
       src/woff2_enc.cc src/font.cc src/glyph.cc src/normalize.cc
       src/transform.cc src/table_tags.cc src/variable_length.cc
       src/woff2_common.cc src/woff2_out.cc

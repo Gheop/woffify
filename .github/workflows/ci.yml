@@ -8,19 +8,26 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.26.4', 'stable']   # exercise the go.mod minimum and the latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: stable
+          go-version: ${{ matrix.go }}
       - name: Install C dependencies
+        env:
+          WOFF2_TAG: v1.0.2
+          WOFF2_SHA: 1bccf208bca986e53a647dfe4811322adb06ecf8
         run: |
           sudo apt-get update
           sudo apt-get install -y libharfbuzz-dev libbrotli-dev pkg-config g++
-          # Ubuntu has no woff2 -dev package; build the encoder from source.
-          git clone --depth 1 https://github.com/google/woff2 /tmp/woff2
+          # Ubuntu has no woff2 -dev package; build the encoder from a pinned source.
+          git clone --depth 1 --branch "$WOFF2_TAG" https://github.com/google/woff2 /tmp/woff2
+          test "$(git -C /tmp/woff2 rev-parse HEAD)" = "$WOFF2_SHA"
           cd /tmp/woff2
-          g++ -O2 -std=c++11 -fPIC -Iinclude -c \
+          g++ -O2 -std=c++11 -include cstdint -fPIC -Iinclude -c \
             src/woff2_enc.cc src/font.cc src/glyph.cc src/normalize.cc \
             src/transform.cc src/table_tags.cc src/variable_length.cc \
             src/woff2_common.cc src/woff2_out.cc
