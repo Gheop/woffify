@@ -13,3 +13,7 @@ package main
 #cgo LDFLAGS: -Wl,--start-group -lwoff2enc -lharfbuzz-subset -lharfbuzz -lbrotlienc -lbrotlicommon -Wl,--end-group -lstdc++ -lm
 */
 import "C"
+
+// noisyCLibs is false: woff2 is compiled here without FONT_COMPRESSION_BIN, so
+// the C libraries never write to stderr.
+const noisyCLibs = false

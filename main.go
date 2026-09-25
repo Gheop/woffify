@@ -76,7 +76,7 @@ func main() {
 
 	// Pipe mode: `woffify -` reads a font from stdin and writes WOFF2 to stdout.
 	if flag.NArg() == 1 && flag.Arg(0) == "-" {
-		errOut := muteCStderr()
+		errOut := quietCStderr()
 		if err := convertStream(os.Stdin, os.Stdout, opts); err != nil {
 			fmt.Fprintf(errOut, "woffify: %v\n", err)
 			os.Exit(1)
@@ -90,7 +90,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	errOut := muteCStderr()
+	errOut := quietCStderr()
 	failed := run(inputs, *outDir, *jobs, *quiet, opts, errOut)
 	if failed > 0 {
 		fmt.Fprintf(errOut, "woffify: %d/%d conversion(s) failed\n", failed, len(inputs))

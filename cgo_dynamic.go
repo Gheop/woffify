@@ -8,3 +8,7 @@ package main
 
 // #cgo pkg-config: libwoff2enc harfbuzz-subset
 import "C"
+
+// noisyCLibs is true: system woff2 packages are usually built with CMake's
+// default NOISY_LOGGING, which prints a line per encoded font.
+const noisyCLibs = true

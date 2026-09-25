@@ -4,5 +4,5 @@ package main
 
 import "os"
 
-// muteCStderr is a no-op on non-Linux platforms.
-func muteCStderr() *os.File { return os.Stderr }
+// quietCStderr is a no-op on non-Linux platforms.
+func quietCStderr() *os.File { return os.Stderr }
