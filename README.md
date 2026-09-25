@@ -14,7 +14,7 @@ CI pipelines and container images.
 Convert a folder of fonts to WOFF2 with the prebuilt image:
 
 ```bash
-docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify:v0.2.2 -o /data/out /data/fonts
+docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify:v0.2.5 -o /data/out /data/fonts
 ```
 
 The `.woff2` files are written next to `/data/out`. Every WOFF, TTF, OTF and
@@ -27,10 +27,10 @@ EOT file in the input folder is converted.
 Pull the static image from the container registry:
 
 ```bash
-docker pull ghcr.io/gheop/woffify:v0.2.2
+docker pull ghcr.io/gheop/woffify:v0.2.5
 ```
 
-The image is also on GitLab at `registry.gitlab.com/gheop/woffify:v0.2.2`.
+The image is also on GitLab at `registry.gitlab.com/gheop/woffify:v0.2.5`.
 
 ### Build the image from source
 
@@ -236,6 +236,11 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 ## Release history
 
+### v0.2.5 — Faster encoding (2026-09-25)
+
+- Build Brotli from source instead of using the Alpine package: WOFF2 encoding is about 5% faster in the container image, with byte-identical output
+- Brotli is pinned by release tag and commit SHA, like HarfBuzz and woff2
+
 ### v0.2.4 — Reproducible build and atomic batch writes (2026-09-06)
 
 - Pin HarfBuzz (14.4.0), woff2 (v1.0.2), base images and CI actions by tag/SHA/digest for a reproducible build
@@ -279,6 +284,7 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 | Version | Date       | Changes                                                              |
 |---------|------------|----------------------------------------------------------------------|
+| 1.0.3   | 2026-09-25 | Add v0.2.5 to release history, update image tags to v0.2.5       |
 | 1.0.2   | 2026-09-06 | Add v0.2.4 to release history                                       |
 | 1.0.1   | 2026-08-12 | Drop .ttc from supported input formats                              |
 | 1.0.0   | 2026-08-12 | Initialize changelog, restructure to Diátaxis, fix Debian/Ubuntu build deps |
