@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -83,10 +84,31 @@ func TestEncodeDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < 8; i++ {
-		next, err := encodeWOFF2(sfnt)
-		if err != nil {
-			t.Fatal(err)
+	// A different font to dirty the C heap between encodes. The v0.2.2 bug
+	// (uninitialized encode buffer) only showed up in batches: re-encoding the
+	// same font reuses a buffer holding the same bytes, which hides it.
+	other, err := subsetSFNT(sfnt, subsetOptions{unicodes: []unicodeRange{{0x20, 0x7E}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Concurrent encodes, like a batch run, each after encoding the other font.
+	outs := make([][]byte, 8)
+	errs := make([]error, len(outs))
+	var wg sync.WaitGroup
+	for i := range outs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, errs[i] = encodeWOFF2(other); errs[i] != nil {
+				return
+			}
+			outs[i], errs[i] = encodeWOFF2(sfnt)
+		}()
+	}
+	wg.Wait()
+	for i, next := range outs {
+		if errs[i] != nil {
+			t.Fatal(errs[i])
 		}
 		if !bytes.Equal(first, next) {
 			t.Fatalf("encodeWOFF2 is not deterministic (run %d differs)", i)
