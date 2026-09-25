@@ -55,6 +55,9 @@ func decodeEOT(data []byte) ([]byte, error) {
 	if !looksLikeSFNT(sfnt) {
 		return nil, fmt.Errorf("EOT payload is not a valid SFNT font")
 	}
+	if binary.BigEndian.Uint32(sfnt) == ttcfSignature {
+		return nil, errCollection
+	}
 	return sfnt, nil
 }
 

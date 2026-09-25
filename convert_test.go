@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 	"reflect"
 	"sync"
@@ -62,9 +63,11 @@ func TestBuildSubsetOptions(t *testing.T) {
 // TestRejectTTC checks that font collections are rejected with an error, since
 // WOFF2 has no collection format.
 func TestRejectTTC(t *testing.T) {
-	data := append([]byte("ttcf"), make([]byte, 20)...)
-	if _, err := toSFNT(data); err == nil {
-		t.Error("font collection (ttcf) should be rejected")
+	ttc := append([]byte("ttcf"), make([]byte, 60)...)
+	for name, data := range map[string][]byte{"bare": ttc, "in EOT": makeEOT(ttc, 0)} {
+		if _, err := toSFNT(data); !errors.Is(err, errCollection) {
+			t.Errorf("%s font collection: want errCollection, got %v", name, err)
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ package main
 
 import (
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -237,6 +238,14 @@ func writeAtomic(out string, data []byte) error {
 	return nil
 }
 
+// ttcfSignature starts a font collection (.ttc).
+const ttcfSignature = 0x74746366 // "ttcf"
+
+// errCollection rejects font collections, whether bare or wrapped in an EOT.
+// The woff2 encoder would take them, but subsetting keeps only the first face,
+// and woffify is meant for single web fonts.
+var errCollection = errors.New("font collections (.ttc) are not supported; extract a single font first")
+
 // maxStreamBytes bounds the pipe-mode input; far above any real font, it just
 // stops an unbounded stdin from exhausting memory.
 const maxStreamBytes = 512 << 20 // 512 MiB
@@ -274,8 +283,8 @@ func toSFNT(data []byte) ([]byte, error) {
 		return sfnt, err
 	case 0x774F4632: // "wOF2"
 		return nil, fmt.Errorf("already WOFF2")
-	case 0x74746366: // "ttcf": font collection
-		return nil, fmt.Errorf("font collections (.ttc) are not supported: WOFF2 has no collection format; extract a single font first")
+	case ttcfSignature:
+		return nil, errCollection
 	default: // "OTTO", 0x00010000, "true"
 		return data, nil
 	}

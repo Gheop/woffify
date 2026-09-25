@@ -249,7 +249,7 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 ### v0.2.3 — Reject font collections (2026-08-12)
 
-- Reject `.ttc` font collections with a clear message: WOFF2 has no collection format (previously mis-handled)
+- Reject `.ttc` font collections with a clear message (previously mis-handled: subsetting kept only the first font)
 - Hardened over 297 varied system fonts (color/COLR, CJK, Arabic, Indic, symbols, variable, CFF): all subset and convert, and faithful output is byte-identical to `woff2_compress` on the sample
 
 ### v0.2.2 — Deterministic output (2026-07-02)
