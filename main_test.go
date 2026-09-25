@@ -51,6 +51,16 @@ func TestCollect(t *testing.T) {
 		t.Errorf("recursive: got %d files, want 3 (%v)", len(got), got)
 	}
 
+	// The same file reached twice (listed, and under a listed directory, via a
+	// non-canonical path) is kept once.
+	got, err = collect([]string{dir, filepath.Join(dir, "a.ttf"), dir + "/./a.ttf"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Errorf("duplicates: got %d files, want 2 (%v)", len(got), got)
+	}
+
 	if _, err := collect([]string{filepath.Join(dir, "nope.ttf")}, false); err == nil {
 		t.Error("missing path should error")
 	}

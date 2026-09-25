@@ -290,16 +290,29 @@ func toSFNT(data []byte) ([]byte, error) {
 	}
 }
 
-// collect expands the arguments into a list of font files.
+// collect expands the arguments into a list of font files. A file reached
+// twice (listed and also under a listed directory) is kept once, so it is not
+// mistaken for two inputs colliding on the same output.
 func collect(args []string, recursive bool) ([]string, error) {
 	var out []string
+	seen := map[string]bool{}
+	add := func(path string) {
+		key := filepath.Clean(path)
+		if abs, err := filepath.Abs(path); err == nil {
+			key = abs
+		}
+		if !seen[key] {
+			seen[key] = true
+			out = append(out, path)
+		}
+	}
 	for _, arg := range args {
 		info, err := os.Stat(arg)
 		if err != nil {
 			return nil, err
 		}
 		if !info.IsDir() {
-			out = append(out, arg)
+			add(arg)
 			continue
 		}
 		err = filepath.WalkDir(arg, func(path string, d os.DirEntry, err error) error {
@@ -313,7 +326,7 @@ func collect(args []string, recursive bool) ([]string, error) {
 				return nil
 			}
 			if inputExts[strings.ToLower(filepath.Ext(path))] {
-				out = append(out, path)
+				add(path)
 			}
 			return nil
 		})
