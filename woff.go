@@ -112,16 +112,27 @@ func decodeWOFF(b []byte) (sfnt []byte, isCFF bool, err error) {
 	return out.Bytes(), isCFF, nil
 }
 
-// zlibInflate decompresses a zlib stream of known decompressed size.
+// zlibMaxRatio is the largest expansion zlib's deflate can achieve (~1032:1).
+const zlibMaxRatio = 1032
+
+// zlibInflate decompresses a zlib stream of known decompressed size. The input
+// is untrusted: it inflates at most origLen+1 bytes, so a small table that
+// expands to gigabytes (a zlib bomb) is rejected instead of exhausting memory.
 func zlibInflate(src []byte, origLen uint32) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(src))
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	buf := bytes.NewBuffer(make([]byte, 0, origLen))
-	if _, err := io.Copy(buf, r); err != nil {
+	// origLen comes from the file too: never preallocate more than src can
+	// actually inflate to.
+	capHint := min(uint64(origLen), uint64(len(src))*zlibMaxRatio)
+	buf := bytes.NewBuffer(make([]byte, 0, capHint))
+	if _, err := io.Copy(buf, io.LimitReader(r, int64(origLen)+1)); err != nil {
 		return nil, err
+	}
+	if uint64(buf.Len()) > uint64(origLen) {
+		return nil, fmt.Errorf("inflates past its declared size of %d bytes", origLen)
 	}
 	return buf.Bytes(), nil
 }

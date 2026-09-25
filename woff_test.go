@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"os"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -114,5 +118,57 @@ func TestDecodeWOFFRejectsNonWOFF(t *testing.T) {
 		if _, _, err := decodeWOFF(data); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
+	}
+}
+
+// makeWOFF builds a one-table WOFF 1.0 file whose table stores comp and
+// declares origLen decompressed bytes.
+func makeWOFF(tag string, comp []byte, origLen uint32) []byte {
+	const hdr, dirEntry = 44, 20
+	b := make([]byte, hdr+dirEntry, hdr+dirEntry+len(comp))
+	binary.BigEndian.PutUint32(b[0:], woffSignature)
+	binary.BigEndian.PutUint32(b[4:], 0x00010000)
+	binary.BigEndian.PutUint16(b[12:], 1) // numTables
+	copy(b[hdr:], tag)
+	binary.BigEndian.PutUint32(b[hdr+4:], hdr+dirEntry) // offset
+	binary.BigEndian.PutUint32(b[hdr+8:], uint32(len(comp)))
+	binary.BigEndian.PutUint32(b[hdr+12:], origLen)
+	b = append(b, comp...)
+	binary.BigEndian.PutUint32(b[8:], uint32(len(b))) // total length
+	return b
+}
+
+// TestDecodeWOFFRejectsZlibBomb feeds a table that inflates to 16 MiB but
+// declares barely more than its compressed size: it must be rejected without
+// inflating the whole stream.
+func TestDecodeWOFFRejectsZlibBomb(t *testing.T) {
+	var comp bytes.Buffer
+	zw, _ := zlib.NewWriterLevel(&comp, zlib.BestCompression)
+	zw.Write(make([]byte, 16<<20))
+	zw.Close()
+	bomb := makeWOFF("glyf", comp.Bytes(), uint32(comp.Len())+16)
+
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	_, _, err := decodeWOFF(bomb)
+	runtime.ReadMemStats(&after)
+
+	if err == nil || !strings.Contains(err.Error(), "declared size") {
+		t.Fatalf("want a declared-size error, got %v", err)
+	}
+	if alloc := after.TotalAlloc - before.TotalAlloc; alloc > 8<<20 {
+		t.Fatalf("decoding the bomb allocated %d bytes, want < 8 MiB", alloc)
+	}
+}
+
+// TestDecodeWOFFHugeDeclaredSize checks that a tiny table declaring a 4 GiB
+// size is rejected without trying to allocate it.
+func TestDecodeWOFFHugeDeclaredSize(t *testing.T) {
+	var comp bytes.Buffer
+	zw := zlib.NewWriter(&comp)
+	zw.Write([]byte("x"))
+	zw.Close()
+	if _, _, err := decodeWOFF(makeWOFF("glyf", comp.Bytes(), 0xFFFFFFFF)); err == nil {
+		t.Fatal("want an error for a table shorter than its declared size")
 	}
 }
