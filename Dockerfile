@@ -1,10 +1,21 @@
 # Build a fully static woffify binary and ship it in a scratch image.
 #
 # HarfBuzz is built minimal (subset only, no freetype/glib/graphite/icu), and
-# woff2 is built as a static archive; brotli comes from Alpine's -static package.
+# woff2 and brotli are built as static archives.
 # Everything is linked into one static binary with no runtime dependencies.
 FROM golang:1.26-alpine@sha256:ce864e7223ac17b1775e6fd0b4c0db580c2eb50e7953a427916379e4b92a1628 AS build
-RUN apk add --no-cache build-base git meson ninja brotli-static brotli-dev
+RUN apk add --no-cache build-base git meson ninja cmake
+
+# Static brotli, pinned to a release + verified SHA. Built from source at -O2:
+# the Alpine package encodes 5-6% slower at quality 11 for identical bytes.
+ARG BROTLI_TAG=v1.2.0
+ARG BROTLI_SHA=028fb5a23661f123017c060daa546b55cf4bde29
+RUN git clone --depth 1 --branch "$BROTLI_TAG" https://github.com/google/brotli /brotli \
+    && test "$(git -C /brotli rev-parse HEAD)" = "$BROTLI_SHA" \
+    && cmake -S /brotli -B /brotli/build -DCMAKE_BUILD_TYPE=None -DCMAKE_C_FLAGS=-O2 \
+       -DBUILD_SHARED_LIBS=OFF -DBROTLI_DISABLE_TESTS=ON -DCMAKE_INSTALL_PREFIX=/usr \
+    && cmake --build /brotli/build -j \
+    && cmake --install /brotli/build
 
 # Minimal static HarfBuzz (subset API only), pinned to a release + verified SHA.
 ARG HB_TAG=14.4.0
