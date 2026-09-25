@@ -14,7 +14,7 @@ CI pipelines and container images.
 Convert a folder of fonts to WOFF2 with the prebuilt image:
 
 ```bash
-docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify:v0.2.5 -o /data/out /data/fonts
+docker run --rm -v "$PWD:/data" ghcr.io/gheop/woffify:v0.2.6 -o /data/out /data/fonts
 ```
 
 The `.woff2` files are written next to `/data/out`. Every WOFF, TTF, OTF and
@@ -27,10 +27,10 @@ EOT file in the input folder is converted.
 Pull the static image from the container registry:
 
 ```bash
-docker pull ghcr.io/gheop/woffify:v0.2.5
+docker pull ghcr.io/gheop/woffify:v0.2.6
 ```
 
-The image is also on GitLab at `registry.gitlab.com/gheop/woffify:v0.2.5`.
+The image is also on GitLab at `registry.gitlab.com/gheop/woffify:v0.2.6`.
 
 ### Build the image from source
 
@@ -236,6 +236,16 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 ## Release history
 
+### v0.2.6 — Hardening for untrusted fonts (2026-09-25)
+
+- WOFF tables are inflated only up to their declared size: a small file that expands to gigabytes (zlib bomb) is rejected instead of exhausting memory
+- The woff2 encoder carries the upstream fix for google/woff2#191, a denial of service on crafted fonts; output is unchanged for valid fonts
+- HarfBuzz updated to 14.5.0 (robustness fixes in CFF and table packing, used by subsetting)
+- `-subset-unicodes` rejects code points beyond U+10FFFF
+- Font collections wrapped in an EOT file are rejected like bare `.ttc` files, with an accurate message
+- A file reached twice (listed and inside a listed folder) is converted once instead of failing as a collision
+- The container image is also published on GitLab for each release tag
+
 ### v0.2.5 — Faster encoding (2026-09-25)
 
 - Build Brotli from source instead of using the Alpine package: WOFF2 encoding is about 5% faster in the container image, with byte-identical output
@@ -284,6 +294,7 @@ Brotli, all under permissive MIT or MIT-style licenses.
 
 | Version | Date       | Changes                                                              |
 |---------|------------|----------------------------------------------------------------------|
+| 1.0.4   | 2026-09-25 | Add v0.2.6 to release history, update image tags to v0.2.6       |
 | 1.0.3   | 2026-09-25 | Add v0.2.5 to release history, update image tags to v0.2.5       |
 | 1.0.2   | 2026-09-06 | Add v0.2.4 to release history                                       |
 | 1.0.1   | 2026-08-12 | Drop .ttc from supported input formats                              |
