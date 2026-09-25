@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode"
 )
 
 var inputExts = map[string]bool{
@@ -385,6 +386,11 @@ func parseCodePoint(s string) (rune, error) {
 	v, err := strconv.ParseUint(s, 16, 32)
 	if err != nil {
 		return 0, fmt.Errorf("invalid code point %q", s)
+	}
+	// Beyond U+10FFFF is not Unicode; HarfBuzz would still walk the whole range
+	// (0-7FFFFFFF costs ~660 MB), and above 7FFFFFFF the rune turns negative.
+	if v > unicode.MaxRune {
+		return 0, fmt.Errorf("code point %q is beyond U+10FFFF", s)
 	}
 	return rune(v), nil
 }

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // stringSlice is a repeatable string flag (e.g. -subset-scan a -subset-scan b).
@@ -43,7 +44,7 @@ func extractCSSCodepoints(css string) []rune {
 	var cps []rune
 	for _, decl := range cssContentDecl.FindAllStringSubmatch(css, -1) {
 		for _, esc := range cssEscape.FindAllStringSubmatch(decl[1], -1) {
-			if v, err := strconv.ParseInt(esc[1], 16, 32); err == nil && v > 0 {
+			if v, err := strconv.ParseInt(esc[1], 16, 32); err == nil && v > 0 && v <= unicode.MaxRune {
 				cps = append(cps, rune(v))
 			}
 		}

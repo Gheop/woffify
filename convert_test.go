@@ -30,7 +30,7 @@ func TestParseUnicodeRanges(t *testing.T) {
 		}
 	}
 
-	for _, bad := range []string{"", "xyz", "FF-0", "0-", "-FF"} {
+	for _, bad := range []string{"", "xyz", "FF-0", "0-", "-FF", "110000", "0-7FFFFFFF", "80000000", "0-FFFFFFFF"} {
 		if _, err := parseUnicodeRanges(bad); err == nil {
 			t.Errorf("parseUnicodeRanges(%q): expected an error", bad)
 		}

@@ -26,6 +26,7 @@ func TestExtractCSSCodepoints(t *testing.T) {
 .fa-house::before { content: "\f015"; }
 .fa-user::before  { content: '\f007'; }
 .emoji::after     { content: "\1F600"; }
+.bogus::after     { content: "\FFFFFF"; }
 .plain            { color: #fff; }
 .text::before     { content: "Chapter "; }
 `
