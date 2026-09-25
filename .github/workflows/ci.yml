@@ -97,4 +97,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Only main and tags refresh the layer cache; exporting it from every
+          # pull request run doubles the build step.
+          cache-to: ${{ github.event_name == 'push' && 'type=gha,mode=max' || '' }}
