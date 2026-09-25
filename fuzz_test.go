@@ -13,7 +13,7 @@ func FuzzDecodeWOFF(f *testing.F) {
 	f.Add([]byte("wOFF"))
 	f.Add([]byte{})
 	f.Fuzz(func(t *testing.T, b []byte) {
-		_, _, _ = decodeWOFF(b)
+		_, _ = decodeWOFF(b)
 	})
 }
 

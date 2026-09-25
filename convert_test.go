@@ -79,7 +79,7 @@ func TestEncodeDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sfnt, _, err := decodeWOFF(woff)
+	sfnt, err := decodeWOFF(woff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
-	sfnt, _, err := decodeWOFF(data)
+	sfnt, err := decodeWOFF(data)
 	if err != nil {
 		t.Fatalf("decodeWOFF: %v", err)
 	}

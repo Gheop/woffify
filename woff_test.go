@@ -20,12 +20,9 @@ func TestDecodeWOFF(t *testing.T) {
 		t.Fatalf("read fixture: %v", err)
 	}
 
-	sfnt, isCFF, err := decodeWOFF(data)
+	sfnt, err := decodeWOFF(data)
 	if err != nil {
 		t.Fatalf("decodeWOFF: %v", err)
-	}
-	if isCFF {
-		t.Errorf("DejaVuSerif is a glyf font, isCFF should be false")
 	}
 
 	tables := parseSFNTTables(t, sfnt)
@@ -102,7 +99,7 @@ func BenchmarkDecodeWOFF(b *testing.B) {
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, _, err := decodeWOFF(data); err != nil {
+		if _, err := decodeWOFF(data); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -115,7 +112,7 @@ func TestDecodeWOFFRejectsNonWOFF(t *testing.T) {
 		"TTF signature": append([]byte{0x00, 0x01, 0x00, 0x00}, make([]byte, 60)...),
 	}
 	for name, data := range cases {
-		if _, _, err := decodeWOFF(data); err == nil {
+		if _, err := decodeWOFF(data); err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
 	}
@@ -150,7 +147,7 @@ func TestDecodeWOFFRejectsZlibBomb(t *testing.T) {
 
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	_, _, err := decodeWOFF(bomb)
+	_, err := decodeWOFF(bomb)
 	runtime.ReadMemStats(&after)
 
 	if err == nil || !strings.Contains(err.Error(), "declared size") {
@@ -168,7 +165,7 @@ func TestDecodeWOFFHugeDeclaredSize(t *testing.T) {
 	zw := zlib.NewWriter(&comp)
 	zw.Write([]byte("x"))
 	zw.Close()
-	if _, _, err := decodeWOFF(makeWOFF("glyf", comp.Bytes(), 0xFFFFFFFF)); err == nil {
+	if _, err := decodeWOFF(makeWOFF("glyf", comp.Bytes(), 0xFFFFFFFF)); err == nil {
 		t.Fatal("want an error for a table shorter than its declared size")
 	}
 }

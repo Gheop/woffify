@@ -24,7 +24,7 @@ func TestDecodeEOT(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sfnt, _, err := decodeWOFF(woff)
+	sfnt, err := decodeWOFF(woff)
 	if err != nil {
 		t.Fatal(err)
 	}

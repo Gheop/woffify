@@ -279,7 +279,7 @@ func toSFNT(data []byte) ([]byte, error) {
 	}
 	switch binary.BigEndian.Uint32(data) {
 	case woffSignature: // "wOFF"
-		sfnt, _, err := decodeWOFF(data)
+		sfnt, err := decodeWOFF(data)
 		return sfnt, err
 	case 0x774F4632: // "wOF2"
 		return nil, fmt.Errorf("already WOFF2")

@@ -15,20 +15,18 @@ const woffSignature = 0x774F4646
 
 // decodeWOFF rebuilds the original SFNT (TTF/OTF) bytes from a WOFF 1.0 file.
 // WOFF 1.0 is just a container: each SFNT table is stored either raw or
-// zlib-compressed, so the reconstruction is lossless. The second return value
-// is true for OpenType/CFF fonts (flavor "OTTO").
+// zlib-compressed, so the reconstruction is lossless.
 //
 // Reference: https://www.w3.org/TR/WOFF/ (sections 3 and 4).
-func decodeWOFF(b []byte) (sfnt []byte, isCFF bool, err error) {
+func decodeWOFF(b []byte) ([]byte, error) {
 	if len(b) < 44 {
-		return nil, false, fmt.Errorf("file too short for a WOFF header")
+		return nil, fmt.Errorf("file too short for a WOFF header")
 	}
 	if binary.BigEndian.Uint32(b[0:]) != woffSignature {
-		return nil, false, fmt.Errorf("missing WOFF signature (not a .woff file)")
+		return nil, fmt.Errorf("missing WOFF signature (not a .woff file)")
 	}
 	flavor := binary.BigEndian.Uint32(b[4:])
 	numTables := int(binary.BigEndian.Uint16(b[12:]))
-	isCFF = flavor == 0x4F54544F // "OTTO"
 
 	// Read the table directory (20 bytes per entry, right after the header).
 	type entry struct {
@@ -39,7 +37,7 @@ func decodeWOFF(b []byte) (sfnt []byte, isCFF bool, err error) {
 	pos := 44
 	for i := range dir {
 		if pos+20 > len(b) {
-			return nil, false, fmt.Errorf("truncated table directory (table %d/%d)", i, numTables)
+			return nil, fmt.Errorf("truncated table directory (table %d/%d)", i, numTables)
 		}
 		dir[i] = entry{
 			tag:     binary.BigEndian.Uint32(b[pos:]),
@@ -60,22 +58,23 @@ func decodeWOFF(b []byte) (sfnt []byte, isCFF bool, err error) {
 	offsets := make([]uint32, numTables)
 	for i, e := range dir {
 		if int(e.offset)+int(e.compLen) > len(b) {
-			return nil, false, fmt.Errorf("table data out of bounds (tag %s)", tagString(e.tag))
+			return nil, fmt.Errorf("table data out of bounds (tag %s)", tagString(e.tag))
 		}
 		raw := b[e.offset : e.offset+e.compLen]
 		var data []byte
 		if e.compLen < e.origLen {
 			// Table is zlib-compressed.
+			var err error
 			data, err = zlibInflate(raw, e.origLen)
 			if err != nil {
-				return nil, false, fmt.Errorf("decompressing table %s: %w", tagString(e.tag), err)
+				return nil, fmt.Errorf("decompressing table %s: %w", tagString(e.tag), err)
 			}
 		} else {
 			// Stored uncompressed (compLen == origLen).
 			data = raw
 		}
 		if uint32(len(data)) != e.origLen {
-			return nil, false, fmt.Errorf("table %s: got %d bytes, want %d",
+			return nil, fmt.Errorf("table %s: got %d bytes, want %d",
 				tagString(e.tag), len(data), e.origLen)
 		}
 		tables[i] = data
@@ -109,7 +108,7 @@ func decodeWOFF(b []byte) (sfnt []byte, isCFF bool, err error) {
 		}
 	}
 
-	return out.Bytes(), isCFF, nil
+	return out.Bytes(), nil
 }
 
 // zlibMaxRatio is the largest expansion zlib's deflate can achieve (~1032:1).
