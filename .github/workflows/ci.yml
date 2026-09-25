@@ -13,6 +13,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      WOFF2_TAG: v1.0.2
+      WOFF2_SHA: 1bccf208bca986e53a647dfe4811322adb06ecf8
     strategy:
       matrix:
         go: ['1.26.4', 'stable']   # exercise the go.mod minimum and the latest
@@ -24,12 +27,21 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
       - name: Install C dependencies
-        env:
-          WOFF2_TAG: v1.0.2
-          WOFF2_SHA: 1bccf208bca986e53a647dfe4811322adb06ecf8
         run: |
           sudo apt-get update
           sudo apt-get install -y libharfbuzz-dev libbrotli-dev pkg-config g++
+      # The woff2 encoder is built from a pinned source, so its build is cached;
+      # the key also follows the runner image and compiler.
+      - id: toolchain
+        run: echo "key=$ImageOS-$(g++ -dumpfullversion)" >> "$GITHUB_OUTPUT"
+      - id: woff2-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/woff2-build
+          key: woff2-${{ env.WOFF2_SHA }}-O2-cstdint-${{ steps.toolchain.outputs.key }}
+      - name: Build the woff2 encoder
+        if: steps.woff2-cache.outputs.cache-hit != 'true'
+        run: |
           # Ubuntu has no woff2 -dev package; build the encoder from a pinned source.
           git clone --depth 1 --branch "$WOFF2_TAG" https://github.com/google/woff2 /tmp/woff2
           test "$(git -C /tmp/woff2 rev-parse HEAD)" = "$WOFF2_SHA"
@@ -38,8 +50,13 @@ jobs:
             src/woff2_enc.cc src/font.cc src/glyph.cc src/normalize.cc \
             src/transform.cc src/table_tags.cc src/variable_length.cc \
             src/woff2_common.cc src/woff2_out.cc
-          sudo ar rcs /usr/lib/libwoff2enc.a *.o
-          sudo cp -r include/woff2 /usr/include/
+          mkdir -p ~/woff2-build/include
+          ar rcs ~/woff2-build/libwoff2enc.a ./*.o
+          cp -r include/woff2 ~/woff2-build/include/
+      - name: Install the woff2 encoder
+        run: |
+          sudo cp ~/woff2-build/libwoff2enc.a /usr/lib/
+          sudo cp -r ~/woff2-build/include/woff2 /usr/include/
           printf 'Name: woff2enc\nDescription: woff2 encoder\nVersion: 1.0.2\nLibs: -lwoff2enc -lbrotlienc -lbrotlicommon\nCflags:\n' \
             | sudo tee /usr/lib/pkgconfig/libwoff2enc.pc > /dev/null
       - run: go vet ./...
