@@ -18,8 +18,8 @@ RUN git clone --depth 1 --branch "$BROTLI_TAG" https://github.com/google/brotli 
     && cmake --install /brotli/build
 
 # Minimal static HarfBuzz (subset API only), pinned to a release + verified SHA.
-ARG HB_TAG=14.4.0
-ARG HB_SHA=36cb489cb02ce4b92099669ba9f9bea348eff93f
+ARG HB_TAG=14.5.0
+ARG HB_SHA=863d3f7787c6df18d20e4535c5906bf3eb803bd5
 RUN git clone --depth 1 --branch "$HB_TAG" https://github.com/harfbuzz/harfbuzz /hb \
     && test "$(git -C /hb rev-parse HEAD)" = "$HB_SHA"
 WORKDIR /hb
