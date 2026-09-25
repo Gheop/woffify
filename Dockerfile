@@ -33,11 +33,15 @@ RUN meson setup build --default-library=static --buildtype=release \
     && cp src/hb*.h /usr/include/harfbuzz/ \
     && cp build/src/hb-version.h /usr/include/harfbuzz/ 2>/dev/null || true
 
-# Static woff2 encoder, pinned to a release + verified SHA.
+# Static woff2 encoder, pinned to a release + verified SHA, plus the upstream
+# fix for google/woff2#191 (encoder DoS on untrusted fonts), which has no
+# release yet. Only that fix: later upstream commits change the encoded bytes.
 ARG WOFF2_TAG=v1.0.2
 ARG WOFF2_SHA=1bccf208bca986e53a647dfe4811322adb06ecf8
+COPY patches/woff2-monotonic-endpts.patch /patches/
 RUN git clone --depth 1 --branch "$WOFF2_TAG" https://github.com/google/woff2 /woff2 \
-    && test "$(git -C /woff2 rev-parse HEAD)" = "$WOFF2_SHA"
+    && test "$(git -C /woff2 rev-parse HEAD)" = "$WOFF2_SHA" \
+    && git -C /woff2 apply /patches/woff2-monotonic-endpts.patch
 WORKDIR /woff2
 RUN SRCS="src/woff2_enc.cc src/font.cc src/glyph.cc src/normalize.cc src/transform.cc src/table_tags.cc src/variable_length.cc src/woff2_common.cc src/woff2_out.cc"; \
     g++ -O2 -std=c++11 -include cstdint -Iinclude -I/usr/include -c $SRCS \

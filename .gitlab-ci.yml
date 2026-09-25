@@ -14,6 +14,7 @@ test:
     # Debian/Ubuntu ship no woff2 -dev package; build the encoder from a pinned source.
     - git clone --depth 1 --branch "$WOFF2_TAG" https://github.com/google/woff2 /tmp/woff2
     - test "$(git -C /tmp/woff2 rev-parse HEAD)" = "$WOFF2_SHA"
+    - git -C /tmp/woff2 apply "$CI_PROJECT_DIR/patches/woff2-monotonic-endpts.patch"
     - cd /tmp/woff2
     - >
       g++ -O2 -std=c++11 -include cstdint -fPIC -Iinclude -c

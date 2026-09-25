@@ -1,0 +1,27 @@
+From fb9c3379f2605b10f3e8f1d9636664ab5576775c Mon Sep 17 00:00:00 2001
+From: Evgenii Kliuchnikov <eustas.ru@gmail.com>
+Date: Fri, 8 May 2026 13:28:11 +0000
+Subject: [PATCH] Make sure endPtsOfContours is monotonic.
+
+Fixes #191
+
+Drive-by: also check for possible overflow that could be caused by "+1".
+---
+ src/glyph.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/glyph.cc b/src/glyph.cc
+index 5b49486..133a627 100644
+--- a/src/glyph.cc
++++ b/src/glyph.cc
+@@ -95,6 +95,10 @@ bool ReadGlyph(const uint8_t* data, size_t len, Glyph* glyph) {
+       if (!buffer.ReadU16(&point_index)) {
+         return FONT_COMPRESSION_FAILURE();
+       }
++      if ((point_index < last_point_index) ||
++          ((point_index == 0xFFFF) && (i == 0))) {
++        return FONT_COMPRESSION_FAILURE();
++      }
+       uint16_t num_points = point_index - last_point_index + (i == 0 ? 1 : 0);
+       glyph->contours[i].resize(num_points);
+       last_point_index = point_index;

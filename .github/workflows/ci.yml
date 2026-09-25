@@ -46,13 +46,14 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/woff2-build
-          key: woff2-${{ env.WOFF2_SHA }}-O2-cstdint-${{ steps.toolchain.outputs.key }}
+          key: woff2-${{ env.WOFF2_SHA }}-${{ hashFiles('patches/woff2-*.patch') }}-O2-cstdint-${{ steps.toolchain.outputs.key }}
       - name: Build the woff2 encoder
         if: steps.woff2-cache.outputs.cache-hit != 'true'
         run: |
           # Ubuntu has no woff2 -dev package; build the encoder from a pinned source.
           git clone --depth 1 --branch "$WOFF2_TAG" https://github.com/google/woff2 /tmp/woff2
           test "$(git -C /tmp/woff2 rev-parse HEAD)" = "$WOFF2_SHA"
+          git -C /tmp/woff2 apply "$GITHUB_WORKSPACE/patches/woff2-monotonic-endpts.patch"
           cd /tmp/woff2
           g++ -O2 -std=c++11 -include cstdint -fPIC -Iinclude -c \
             src/woff2_enc.cc src/font.cc src/glyph.cc src/normalize.cc \
